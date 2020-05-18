@@ -2,8 +2,10 @@ package com.yjz.spark.kafka.producer;
 
 
 import com.yjz.spark.kafka.KafkaProperties;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.*;
 
+import java.util.ArrayList;
 import java.util.Properties;
 
 
@@ -33,6 +35,12 @@ public class KafkaProducer extends Thread {
         //RecordAccumulator 缓冲区大小(字节)  32M
         properties.put("buffer.memory", 33554432);
 
+        // 添加拦截器
+        ArrayList<Object> interceptors = new ArrayList<>();
+        interceptors.add("com.yjz.spark.kafka.interceptor.CountInterceptor");
+        interceptors.add("com.yjz.spark.kafka.interceptor.TimeInterceptor");
+        properties.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,interceptors);
+
         // 握手机制 0 不反馈， 1 写到本地 -1 检查所有 节点（较严格）
         properties.put("request.required.acks","1");
         producer = new org.apache.kafka.clients.producer.KafkaProducer<String, String>(properties);
@@ -56,11 +64,11 @@ public class KafkaProducer extends Thread {
             System.out.println("send: " + message);
             messageNo ++ ;
             try {
-                Thread.sleep(2000);
+                Thread.sleep(20);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            producer.close();
         }
+        producer.close();
     }
 }
