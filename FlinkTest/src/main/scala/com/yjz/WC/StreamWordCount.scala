@@ -17,14 +17,17 @@ object StreamWordCount {
     // 在本地终端创建 端口 nc -lk 7777
     val dataStream = env.socketTextStream(host,port)
 
+    // 禁用任务链 实现 one-to-one
+    env.disableOperatorChaining()
+
     // 每条数据进行处理 定义处理流程
     val wordCountDataStream = dataStream.flatMap(_.split(" "))
-      .filter(_.nonEmpty)
+      .filter(_.nonEmpty) // 强行和前面的打断 .startNewChain() //在中间位置打断节点 .disableChaining()
       .map((_,1))
       .keyBy(0)
       .sum(1)
     // 默认 并行度 为 开发环境 CPU 数量 。setParallelism 设置并行度
-    wordCountDataStream.print()
+    wordCountDataStream.print().setParallelism(1)
 
     // 启动 executor
     env.execute("stream start job ")
