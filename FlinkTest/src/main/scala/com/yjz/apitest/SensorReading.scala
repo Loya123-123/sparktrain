@@ -5,10 +5,13 @@ import java.util.Properties
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.streaming.api.functions.source.SourceFunction
 import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows
+import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 
+import scala.collection.Seq
 import scala.util.Random
 
 // 定义样例类，传感器 id，时间戳，温度
@@ -17,8 +20,8 @@ case class SensorReading(id : String ,timestamp : Long ,temperature : Double)
 object SensorReading{
   def main(args: Array[String]): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
-
-    // 1.从自定义的集合中读取数据
+/*
+     1.从自定义的集合中读取数据
     val stream1 = env.fromCollection(List(
       SensorReading("sensor_1", 1547718199, 35.80018327300259),
       SensorReading("sensor_6", 1547718201, 15.402984393403084),
@@ -27,34 +30,71 @@ object SensorReading{
     ))
     stream1.print("stream1").setParallelism(1)
 
-//    env.fromElements("直接添加数据")
+    env.fromElements("直接添加数据")
 
-    // 2.从文件读取数据
+     2.从文件读取数据
     val stream2 = env.readTextFile("/Users/loay/idea-workspace/sparktrain/FlinkTest/src/main/resources/hello.txt")
 
     stream2.print("stream2").setParallelism(1)
 
-    // 3、以 kafka 消息队列的数据作为来源
-//    val properties = new Properties()
-//    properties.setProperty("bootstrap.servers", "node101:9092,node102:9092,node103:9092" )
-//    properties.setProperty("group.id", "consumer-group")
-//    properties.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
-//    properties.setProperty("value.deserializer","org.apache.kafka.common.serialization.StringDeserializer")
-//    properties.setProperty("auto.offset.reset", "latest")
-//    val stream3 = env.addSource(new FlinkKafkaConsumer011[String]("test",new SimpleStringSchema(),properties))
-//    stream3.flatMap(_.split(" "))
-//        .filter(_.nonEmpty)
-//        .map((_,1))
-//        .keyBy(0)
-//        .sum(1)
-//        .print("stream3").setParallelism(1)
+     3、以 kafka 消息队列的数据作为来源
+    val properties = new Properties()
+    properties.setProperty("bootstrap.servers", "node101:9092,node102:9092,node103:9092" )
+    properties.setProperty("group.id", "consumer-group")
+    properties.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
+    properties.setProperty("value.deserializer","org.apache.kafka.common.serialization.StringDeserializer")
+    properties.setProperty("auto.offset.reset", "latest")
+    val stream3 = env.addSource(new FlinkKafkaConsumer011[String]("test",new SimpleStringSchema(),properties))
+    stream3.flatMap(_.split(" "))
+        .filter(_.nonEmpty)
+        .map((_,1))
+        .keyBy(0)
+        .sum(1)
+        .print("stream3").setParallelism(1)
+ */
 
     //自定义数据源
+//    val stream4 = env.addSource(new MySource())
+//    stream4.print("stream4").setParallelism(1)
+//
+    env.setParallelism(10)
     val stream4 = env.addSource(new MySource())
-    stream4.print("stream4").setParallelism(1)
+    val dataStream: DataStream[SensorReading] = stream4.map(data => {
+      SensorReading(data.id,data.timestamp,data.temperature)
+    })
+    // 输出当前传感器最新温度 + 10 ，  时间戳在上一次时间 加 1
+    val aggStread = dataStream.keyBy(_.id)
+      .timeWindow(Time.seconds(15), Time.seconds(5))
+      .reduce((x , y) =>SensorReading(x.id,x.timestamp,x.temperature.max(y.temperature)))
+
+
+//    // split select 分流处理
+//    val splitStream = dataStream.split(data => {
+//      if ( data.temperature > 30) Seq("high") else Seq("low")
+//    })
+//    val high = splitStream.select("high")
+//    val low = splitStream.select("low")
+//    val all = splitStream.select("high","low")
+////    high.print("high")
+////    low.print("low")
+////    all.print("all")
+//
+//    // CoMap
+//    val warning = high.map(data => (data.id,data.temperature))
+//    val connectedStream = warning.connect(low)
+//    val coMapDataStream = connectedStream.map(
+//      warningData => (warningData._1,warningData._2,"warning"),
+//      lowData => (lowData.id,lowData.temperature,"healthy")
+//    )
+    aggStread.print("countagg")
+
+
     env.execute("chennl job")
   }
 }
+
+
+
 
 class MySource() extends SourceFunction[SensorReading]{
   // 定义一个flag ，表示数据源是否正常运行
@@ -66,7 +106,7 @@ class MySource() extends SourceFunction[SensorReading]{
     // 初始化定义一组温度数据
     var curTemp = 1.to(10).map(
       // nextGaussian 高斯随机数 （正态分布）c
-      i =>("sensor_"+ i,60 + range.nextGaussian() * 10)
+      i =>("sensor_"+ i,30 + range.nextGaussian() * 10)
     )
 
     // 产生数据量
