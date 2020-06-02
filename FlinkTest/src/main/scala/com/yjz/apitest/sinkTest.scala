@@ -1,17 +1,16 @@
 package com.yjz.apitest
 
-
 import java.sql.{DriverManager, PreparedStatement}
 import java.{sql, util}
 
 import org.apache.flink.api.common.functions.RuntimeContext
-import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.sink.{RichSinkFunction, SinkFunction}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.elasticsearch.{ElasticsearchSinkFunction, RequestIndexer}
 import org.apache.flink.streaming.connectors.elasticsearch6.ElasticsearchSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011
+import org.apache.flink.streaming.util.serialization.SimpleStringSchema
 import org.apache.http.HttpHost
 import org.elasticsearch.client.Requests
 
